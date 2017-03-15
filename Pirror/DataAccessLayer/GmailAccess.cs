@@ -24,7 +24,7 @@ namespace Pirror.DataAccessLayer
             _oServer = new MailServer("imap.gmail.com", "linas.martusevicius@gmail.com", "spaikas22", ServerProtocol.Imap4);
             
             _oClient = new MailClient("TryIt");
-
+            
             _oClient.Authorized += OnAuthorized;
 
             _oServer.SSLConnection = true;
@@ -39,11 +39,33 @@ namespace Pirror.DataAccessLayer
         private void OnAuthorized(object sender, ClientStatusEventArgs clientStatusEventArgs)
         {
             Debug.WriteLine("!!! Connected to GMail" + clientStatusEventArgs.Status.ToString());
-            CheckMailInternal();
+            //            CheckMailInternal();
+            var folders = _oClient.GetFoldersAsync();
+            folders.Completed = ListFolders;
         }
 
-        private void CheckMailInternal()
+        private void ListFolders(IAsyncOperation<IList<Imap4Folder>> asyncInfo, AsyncStatus asyncStatus)
         {
+            var folders = asyncInfo.GetResults();
+
+            Imap4Folder toSelect = null; 
+
+            foreach (var imap4Folder in folders)
+            {
+                if (imap4Folder.Name == "INBOX")
+                {
+                    toSelect = imap4Folder;
+                    break;
+                }
+            }
+
+            var inbox = _oClient.SelectFolderAsync(toSelect);
+            inbox.Completed = CheckMailInternal;
+        }
+
+        private void CheckMailInternal(IAsyncAction asyncInfo, AsyncStatus asyncStatus)
+        {
+
             try
             {
                 var infoResult = _oClient.GetMailInfosAsync();
@@ -96,7 +118,6 @@ namespace Pirror.DataAccessLayer
                 var res = asyncInfo.GetResults();
 
                 var subjTrimmed = res.Subject.Replace("(Trial Version)", string.Empty);
-
                 var toAdd = new Email(res.From.Name, subjTrimmed, res.TextBody);
                 _processedEmails.Add(toAdd);
 

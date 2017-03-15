@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 using Windows.UI.Core;
+using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
 using Pirror.DataAccessLayer;
@@ -27,6 +28,8 @@ namespace Pirror
         private GmailAccess _ga;
 
         private ObservableCollection<WeatherForecast> _forecast = new ObservableCollection<WeatherForecast>(); 
+        private ObservableCollection<Email> _emails = new ObservableCollection<Email>();
+        private double _lastOpacity = 1.0;
 
         public MainPage()
         {
@@ -35,6 +38,8 @@ namespace Pirror
             InitWeather();
             InitMail();
             lv_Forecast.ItemsSource = _forecast;
+            lv_Emails.ItemsSource = _emails;
+            lv_Emails.ContainerContentChanging += OnEmailListContentChanged;
         }
 
         private void InitDateTime()
@@ -47,9 +52,10 @@ namespace Pirror
             UpdateDateTime();
             _weatherTimer++;
 //            Debug.WriteLine(_weatherTimer);
-            if (_weatherTimer == 300)
+            if (_weatherTimer == 60)
             {
                 UpdateWeather();
+                UpdateMail();
                 _weatherTimer = 0;
             }
         }
@@ -62,7 +68,6 @@ namespace Pirror
 
             UpdateTextBlock(tb_Time, time);
             UpdateTextBlock(tb_Date, date);
-//            Debug.WriteLine("-TICK");
         }
 
         private void InitMail()
@@ -70,6 +75,12 @@ namespace Pirror
             _ga = new GmailAccess();
             _ga.CheckMail();
             _ga.MailChecked += OnMailChecked;
+        }
+
+        private void UpdateMail()
+        {
+            lv_Emails.ContainerContentChanging -= OnEmailListContentChanged;
+            _ga.CheckMail();
         }
 
         private void InitWeather()
@@ -145,15 +156,44 @@ namespace Pirror
 
         private void OnMailChecked(object sender, EventArgs e)
         {
+            _lastOpacity = 1.0;
+
             var args = (MailArgs) e;
 
-            foreach (var piMail in args.PiMails)
-            {
-                Debug.WriteLine("~~~ EMAIL= "+ piMail.Sender);
-            }
 
+            var t1 = new Task(async () =>
+            {
+                await CoreApplication.MainView.CoreWindow.Dispatcher.RunAsync(CoreDispatcherPriority.Normal,
+                    () =>
+                    {
+                        _emails.Clear();
+
+                        lv_Emails.ContainerContentChanging += OnEmailListContentChanged;
+
+                        foreach (var piMail in args.PiMails)
+                        {
+                            _emails.Add(piMail);
+                        }
+                    });
+            });
+            t1.Start();
         }
 
         
+
+        private void OnEmailListContentChanged(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            
+            if (args.ItemIndex >= 6)
+            {
+                if (_lastOpacity >= 0.1)
+                {
+                    _lastOpacity = _lastOpacity - 0.1;
+                }
+                args.ItemContainer.Opacity = _lastOpacity;
+            }
+        }
+
+
     }
 }
