@@ -69,6 +69,7 @@ namespace Pirror
         {
             _ga = new GmailAccess();
             _ga.CheckMail();
+            _ga.MailChecked += OnMailChecked;
         }
 
         private void InitWeather()
@@ -140,6 +141,17 @@ namespace Pirror
                     });
             });
             t1.Start();
+        }
+
+        private void OnMailChecked(object sender, EventArgs e)
+        {
+            var args = (MailArgs) e;
+
+            foreach (var piMail in args.PiMails)
+            {
+                Debug.WriteLine("~~~ EMAIL= "+ piMail.Sender);
+            }
+
         }
 
         

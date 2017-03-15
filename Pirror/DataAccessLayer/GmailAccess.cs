@@ -91,15 +91,23 @@ namespace Pirror.DataAccessLayer
 
         private void MailDetailsReceived(IAsyncOperation<Mail> asyncInfo, AsyncStatus asyncStatus)
         {
+            try
+            {
+                var res = asyncInfo.GetResults();
 
-            var res = asyncInfo.GetResults();
-            
-            var toAdd = new Email(res.From.ToString(), res.Subject, res.TextBody);
-            _processedEmails.Add(toAdd);
+                var subjTrimmed = res.Subject.Replace("(Trial Version)", string.Empty);
 
-            Debug.WriteLine(toAdd);
+                var toAdd = new Email(res.From.Name, subjTrimmed, res.TextBody);
+                _processedEmails.Add(toAdd);
 
-            ProcessMailStack();
+                //Debug.WriteLine(toAdd);
+
+                ProcessMailStack();
+            }
+            catch (ArgumentException argEx)
+            {
+                //ArgumentException occurred because the res.From.ToString() does not come with an encoding
+            }
         }
 
         public event EventHandler MailChecked;
@@ -120,7 +128,7 @@ namespace Pirror.DataAccessLayer
             _mailList = emails;
         }
 
-        public List<Email> Weather
+        public List<Email> PiMails
         {
             get { return _mailList; }
         }
