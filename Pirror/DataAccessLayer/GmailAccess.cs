@@ -6,129 +6,85 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Foundation;
-using EAGetMail;
+//using EAGetMail;
+using MailKit;
+using MailKit.Net.Imap;
+using MailKit.Search;
 using Pirror.Model;
 
 namespace Pirror.DataAccessLayer
 {
     class GmailAccess
     {
-        private MailServer _oServer;
-        private MailClient _oClient;
-
-        private Stack<MailInfo> _mailInfoStack = new Stack<MailInfo>();
+//        private MailServer _oServer;
+//        private MailClient _oClient;
+//
+//        private Stack<MailInfo> _mailInfoStack = new Stack<MailInfo>();
         private List<Email> _processedEmails = new List<Email>();
 
-        public GmailAccess()
-        {
-            _oServer = new MailServer("imap.gmail.com", "linas.martusevicius@gmail.com", "spaikas22", ServerProtocol.Imap4);
-            
-            _oClient = new MailClient("TryIt");
-            
-            _oClient.Authorized += OnAuthorized;
+        private ImapClient _mailClient;
 
-            _oServer.SSLConnection = true;
-            _oServer.Port = 993;
+        public void CheckMail()
+        {
+            _mailClient = new ImapClient();
+            _mailClient.ConnectAsync("imap.gmail.com", 993, true);
+            _mailClient.Connected += OnClientConnected;
+
         }
 
-        public async void CheckMail()
+        private void OnClientConnected(object sender, EventArgs eventArgs)
         {
-            await _oClient.ConnectAsync(_oServer);
+            _mailClient.Authenticated += OnClientAuthenticated;
+            _mailClient.AuthenticateAsync("linas.martusevicius@gmail.com", "spaikas22");
+
         }
 
-        private void OnAuthorized(object sender, ClientStatusEventArgs clientStatusEventArgs)
+        private void OnClientAuthenticated(object sender, AuthenticatedEventArgs authenticatedEventArgs)
         {
-            Debug.WriteLine("!!! Connected to GMail" + clientStatusEventArgs.Status.ToString());
-            //            CheckMailInternal();
-            var folders = _oClient.GetFoldersAsync();
-            folders.Completed = ListFolders;
-        }
+            _processedEmails.Clear();
+            var inbox = _mailClient.Inbox;
+            inbox.Open(FolderAccess.ReadOnly);
 
-        private void ListFolders(IAsyncOperation<IList<Imap4Folder>> asyncInfo, AsyncStatus asyncStatus)
-        {
-            var folders = asyncInfo.GetResults();
 
-            Imap4Folder toSelect = null; 
+            Debug.WriteLine("~~~ Total messages: {0}", inbox.Count);
+            Debug.WriteLine("~~~ Recent messages: {0}", inbox.Recent);
+            Debug.WriteLine("~~~ Unread messages: {0}", inbox.Unread);
 
-            foreach (var imap4Folder in folders)
+
+            var query = SearchQuery.GMailRawSearch("is:unread in:inbox -category:promotions");
+
+            foreach (var uid in inbox.Search(query))
             {
-                if (imap4Folder.Name == "INBOX")
+                var message = inbox.GetMessage(uid);
+//                Debug.WriteLine($"~~~ {uid}: {message.Subject}:");
+
+                string nameToDisplay;
+                if (message.Sender != null)
                 {
-                    toSelect = imap4Folder;
-                    break;
+                    var senderName = message.Sender.ToString();
+                    var senderAddress = message.Sender.Address;
+                    if (string.IsNullOrEmpty(senderName))
+                    {
+                        nameToDisplay = senderAddress;
+                    }
+                    else
+                    {
+                        nameToDisplay = senderName;
+                    }
                 }
-            }
-
-            var inbox = _oClient.SelectFolderAsync(toSelect);
-            inbox.Completed = CheckMailInternal;
-        }
-
-        private void CheckMailInternal(IAsyncAction asyncInfo, AsyncStatus asyncStatus)
-        {
-
-            try
-            {
-                var infoResult = _oClient.GetMailInfosAsync();
-                infoResult.Completed = ProcessMailInfo;
-            }
-            catch (Exception ep)
-            {
-                Debug.WriteLine(ep.Message);
-            }
-        }
-
-        private void ProcessMailInfo(IAsyncOperation<IList<MailInfo>> asyncInfo, AsyncStatus asyncStatus)
-        {
-  
-            var infoList = asyncInfo.GetResults();
-            
-            Debug.WriteLine("Result count =" + infoList.Count);
-
-            foreach (var mailInfo in infoList)
-            {
-                if (!mailInfo.Read)
+                else
                 {
-                    _mailInfoStack.Push(mailInfo);
+                    nameToDisplay = message.From.ToString().Replace("\"",string.Empty).Replace("<", "- ").Replace(">",string.Empty);
                 }
-            }
 
-            ProcessMailStack();
-
-        }//for test commit
-
-        private void ProcessMailStack()
-        {
-            if (_mailInfoStack.Count != 0)
-            {
-                var currentMailInfo = _mailInfoStack.Pop();
-
-                var stuff = _oClient.GetMailAsync(currentMailInfo);
-                stuff.Completed = MailDetailsReceived;
-            }
-            else
-            {
-                OnMailChecked(new MailArgs(_processedEmails));
-            }
-        }
-
-        private void MailDetailsReceived(IAsyncOperation<Mail> asyncInfo, AsyncStatus asyncStatus)
-        {
-            try
-            {
-                var res = asyncInfo.GetResults();
-
-                var subjTrimmed = res.Subject.Replace("(Trial Version)", string.Empty);
-                var toAdd = new Email(res.From.Name, subjTrimmed, res.TextBody);
+                var toAdd = new Email(nameToDisplay, message.Subject, message.TextBody);
+                Debug.WriteLine(toAdd.ToString());
                 _processedEmails.Add(toAdd);
-
-                //Debug.WriteLine(toAdd);
-
-                ProcessMailStack();
+                
             }
-            catch (ArgumentException argEx)
-            {
-                //ArgumentException occurred because the res.From.ToString() does not come with an encoding
-            }
+
+            _mailClient.DisconnectAsync(true);
+            OnMailChecked(new MailArgs(_processedEmails));
         }
 
         public event EventHandler MailChecked;

@@ -11,6 +11,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media.Imaging;
 using Pirror.DataAccessLayer;
 using Pirror.Model;
+using PirrorConfigLib;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -33,13 +34,24 @@ namespace Pirror
 
         public MainPage()
         {
+            
             InitializeComponent();
+            InitConfiguration();
             InitDateTime();
             InitWeather();
             InitMail();
             lv_Forecast.ItemsSource = _forecast;
             lv_Emails.ItemsSource = _emails;
             lv_Emails.ContainerContentChanging += OnEmailListContentChanged;
+        }
+
+        private void InitConfiguration()
+        {
+            var confAccess = new PirrorConfigurationAccess();
+            var demoConf = confAccess.GetDemoConfiguration();
+            var demoConfString = demoConf.GetAsXmlString();
+
+            Debug.Write(demoConfString);
         }
 
         private void InitDateTime()
@@ -54,7 +66,7 @@ namespace Pirror
 //            Debug.WriteLine(_weatherTimer);
             if (_weatherTimer == 60)
             {
-                UpdateWeather();
+//                UpdateWeather();
                 UpdateMail();
                 _weatherTimer = 0;
             }
