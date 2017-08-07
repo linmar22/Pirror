@@ -21,7 +21,7 @@ namespace Pirror.DataAccessLayer
 
         public GmailAccess()
         {
-            _oServer = new MailServer("imap.gmail.com", "linas.martusevicius@gmail.com", "spaikas22", ServerProtocol.Imap4);
+            _oServer = new MailServer("imap.gmail.com", "username", "password", ServerProtocol.Imap4);
             
             _oClient = new MailClient("TryIt");
 
@@ -97,7 +97,7 @@ namespace Pirror.DataAccessLayer
             var toAdd = new Email(res.From.ToString(), res.Subject, res.TextBody);
             _processedEmails.Add(toAdd);
 
-            Debug.WriteLine(toAdd);
+            Debug.WriteLine(toAdd.Subject);
 
             ProcessMailStack();
         }
